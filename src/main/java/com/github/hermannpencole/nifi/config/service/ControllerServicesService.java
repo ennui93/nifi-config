@@ -10,6 +10,11 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static com.github.hermannpencole.nifi.swagger.client.model.ControllerServiceReferencingComponentDTO.ReferenceTypeEnum.CONTROLLERSERVICE;
 
 /**
  * Class that offer service for nifi processor
@@ -101,10 +106,16 @@ public class ControllerServicesService {
     public void setStateReferencingControllerServices(String id, UpdateControllerServiceReferenceRequestEntity.StateEnum state) throws ApiException {
         FunctionUtils.runWhile(()-> {
             ControllerServiceReferencingComponentsEntity controllerServiceReferencingComponentsEntity = null;
+            List<ControllerServiceReferencingComponentEntity> referencingComponentEntities
+                    = controllerServicesApi.getControllerService(id).getComponent().getReferencingComponents();
+            Map<String, RevisionDTO> referencingControllerServices = referencingComponentEntities.stream()
+                    .filter(item -> item.getComponent().getReferenceType() == CONTROLLERSERVICE)
+                    .collect(Collectors.toMap(item -> item.getId(), item -> item.getRevision()));
             try {
                 UpdateControllerServiceReferenceRequestEntity updateControllerServiceReferenceRequestEntity = new UpdateControllerServiceReferenceRequestEntity();
                 updateControllerServiceReferenceRequestEntity.setId(id);
                 updateControllerServiceReferenceRequestEntity.setState(state);
+                updateControllerServiceReferenceRequestEntity.setReferencingComponentRevisions(referencingControllerServices);
                 controllerServiceReferencingComponentsEntity = controllerServicesApi.updateControllerServiceReferences(id, updateControllerServiceReferenceRequestEntity);
              } catch (ApiException e) {
                 LOG.info(e.getResponseBody());
