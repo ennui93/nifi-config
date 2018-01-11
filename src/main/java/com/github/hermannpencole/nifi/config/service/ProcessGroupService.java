@@ -13,7 +13,6 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.github.hermannpencole.nifi.config.utils.FunctionUtils.findByComponentName;
 
@@ -32,7 +31,8 @@ public class ProcessGroupService {
     private final static double ELEMENT_WIDTH = 430;
     private final static double ELEMENT_HEIGHT = 220;
     private final static double APPROXIMATE = 0.01;
-
+    private final static String EXTERNAL_CONNECTION_REGEX
+            = "Cannot delete Process Group because [a-zA-Z]+ Port [a-zA-Z0-9-]+ has at least one [a-z]+ connection [a-z]+ a component outside of the Process Group. Delete this connection first.";
     @Inject
     private FlowApi flowapi;
 
@@ -295,12 +295,16 @@ public class ProcessGroupService {
     public void delete(String processGroupId) {
         FunctionUtils.runWhile(()-> {
             ProcessGroupEntity processGroupToRemove = null;
+            ProcessGroupEntity processGroupEntity = processGroupsApi.getProcessGroup(processGroupId);
             try {
                 //the state change, then the revision also in nifi 1.3.0 (only?) reload processGroup
-                ProcessGroupEntity processGroupEntity = processGroupsApi.getProcessGroup(processGroupId);
                 processGroupToRemove = processGroupsApi.removeProcessGroup(processGroupId, processGroupEntity.getRevision().getVersion().toString(),null);
             } catch (ApiException e) {
                 LOG.info(e.getResponseBody());
+                if(e.getResponseBody() != null && e.getResponseBody().matches(EXTERNAL_CONNECTION_REGEX)) {
+                    connectionService.removeExternalConnections(processGroupEntity);
+                    return true;
+                }
                 if (e.getResponseBody() == null || !e.getResponseBody().endsWith("is running")){
                     throw e;
                 }
